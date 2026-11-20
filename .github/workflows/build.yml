@@ -5,18 +5,18 @@ on:
   workflow_dispatch:
     inputs:
       app:
-        description: "빌드할 앱: story(동화) / grant(지원금) / site(개인정보처리방침 페이지만 배포)"
+        description: "story(동화) / grant(지원금) / site(개인정보처리방침 배포) / art(동화 삽화 생성 후 0A-1에 저장)"
         required: true
         default: story
         type: choice
-        options: [story, grant, site]
+        options: [story, grant, site, art]
 
 permissions:
   contents: read
 
 jobs:
   android:
-    if: inputs.app != 'site'
+    if: inputs.app == 'story' || inputs.app == 'grant'
     runs-on: ubuntu-latest
     steps:
       - run: echo "VC=$((100 + ${{ github.run_number }}))" >> "$GITHUB_ENV"
@@ -74,6 +74,25 @@ jobs:
         with:
           path: site
       - uses: actions/deploy-pages@v4
+
+  # 무료 이미지 생성(Pollinations)으로 동화 삽화를 만들어 비공개 저장소에 저장. 이미 있는 그림은 건너뜀.
+  art:
+    if: inputs.app == 'art'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tlsgusdlf33/0A-1
+          token: ${{ secrets.OA1_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/make-art.js
+      - run: |
+          git config user.name "art-bot"; git config user.email "art-bot@users.noreply.github.com"
+          git add apps/story/www/art
+          git diff --cached --quiet || { git commit -m "Add story illustrations" && git push; }
 
   # 공개 저장소에 키·비밀번호·앱 코드가 섞여 들어오지 않았는지 매번 검사 (파일 이름만 기록)
   safety:
